@@ -47,10 +47,17 @@ func (s *Sudoku) String() string {
 				b.WriteString("| ")
 			}
 
-			b.WriteString(fmt.Sprintf("%d ", val))
+			// Append the value of the cell, or a blank space if it is empty (val==0)
+			if val == 0 {
+				b.WriteString("  ")
+			} else {
+				b.WriteString(fmt.Sprintf("%d ", val))
+			}
 		}
 
-		b.WriteString("\n")
+		if row != 8 {
+			b.WriteString("\n")
+		}
 	}
 
 	return b.String()
@@ -58,5 +65,10 @@ func (s *Sudoku) String() string {
 
 func main() {
 	s := NewPremade()
+
+	fmt.Println("Initial Board Configuration:")
+	fmt.Println("----------------------------")
 	fmt.Println(s.String())
+	fmt.Printf("-----------------------------\n\n")
+
 }
