@@ -2,7 +2,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"log"
+	"time"
+
+	"github.com/chromedp/chromedp"
 )
 
 // Sudoku represents a game of Sudoku.
@@ -22,6 +27,21 @@ func NewPremade() *Sudoku {
 		{5, 9, 4, 7, 0, 3, 0, 8, 0},
 		{6, 0, 0, 0, 0, 5, 3, 0, 0},
 		{0, 1, 0, 0, 0, 0, 0, 5, 9},
+	}
+
+	return &Sudoku{
+		board: board,
+	}
+}
+
+// NewFromHTML returns an instance of Sudoku with the board initially set from the contents of an HTML table grid.
+func NewFromHTML(h *string) *Sudoku {
+	board := [][]int{}
+
+	for row := 0; row < 9; row++ {
+		for col := 0; col < 9; col++ {
+
+		}
 	}
 
 	return &Sudoku{
@@ -116,16 +136,57 @@ func (s *Sudoku) Solve() bool {
 	return true
 }
 
+func solveSudoku(ctx context.Context) error {
+
+	var (
+		timeout            = time.Second * 60
+		sudokuURL          = "https://nine.websudoku.com/"
+		puzzleGridSelector = `#puzzle_grid`
+		loc                string
+		title              string
+		tableOuterHTML     string
+	)
+
+	// Create a new context with a 60 second timeout
+	newCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	log.Printf("Starting Sudoku Solver with a %1.f second timeout...", timeout.Seconds())
+
+	if err := chromedp.Run(newCtx,
+		chromedp.Navigate(sudokuURL),
+		chromedp.Location(&loc),
+		chromedp.Title(&title),
+	); err != nil {
+		return err
+	}
+
+	log.Printf("Running Sudoku Solver at [%s] (%s)...", title, loc)
+
+	if err := chromedp.Run(newCtx,
+		chromedp.OuterHTML(puzzleGridSelector, &tableOuterHTML, chromedp.NodeVisible),
+	); err != nil {
+		return err
+	}
+
+	fmt.Println(tableOuterHTML)
+	return nil
+}
+
 func main() {
-	s := NewPremade()
+	// Disable the headless option
+	opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.Flag("headless", false))
 
-	fmt.Println("Initial Board:")
-	fmt.Println("----------------------------")
-	fmt.Println(s)
-	fmt.Printf("----------------------------\n\n")
+	// Create a ExecAllocator that uses the custom options
+	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer cancel()
 
-	fmt.Printf("Solvable: %t\n", s.Solve())
-	fmt.Println("----------------------------")
-	fmt.Println(s)
-	fmt.Printf("----------------------------\n\n")
+	// Create a new context with the ExecAllocator
+	ctx, cancel := chromedp.NewContext(allocCtx)
+	defer cancel()
+
+	err := chromedp.Run(ctx, chromedp.ActionFunc(solveSudoku))
+	if err != nil {
+		log.Fatal(err)
+	}
 }
