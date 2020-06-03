@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/chromedp"
 	"golang.org/x/net/html"
 )
@@ -16,7 +17,7 @@ import (
 const (
 	pause              = time.Second * 3
 	timeout            = time.Second * 60
-	sudokuURL          = "https://nine.websudoku.com/"
+	sudokuURL          = "https://nine.websudoku.com/?level=4"
 	puzzleGridSelector = `#puzzle_grid`
 )
 
@@ -206,6 +207,7 @@ func solveSudoku(ctx context.Context) error {
 	newCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	// Connect to the page, and retrieve the puzzle's HTML
 	log.Printf("Starting Sudoku Solver with a %1.f second timeout...", timeout.Seconds())
 	if err := chromedp.Run(newCtx,
 		chromedp.Navigate(sudokuURL),
@@ -217,18 +219,48 @@ func solveSudoku(ctx context.Context) error {
 		return err
 	}
 
+	// Parse the HTML into a Sudoku object
 	log.Printf("Running Sudoku Solver at [%s] (%s)...", title, loc)
 	s, err := NewFromHTML(&tableOuterHTML)
 	if err != nil {
 		return err
 	}
 
+	// Solve the puzzle and print it
 	solvable := s.Solve()
 	fmt.Println("Solved: ", solvable, "-----------------")
 	fmt.Println(s)
 	fmt.Println("-----------------------------")
 
-	time.Sleep(timeout)
+	// Enter the Solution into the page
+	log.Println("Entering Solution into page...")
+	for row := 0; row < 9; row++ {
+		for col := 0; col < 9; col++ {
+			var (
+				id    = fmt.Sprintf("#f%d%d", col, row) // Determine the ID of the cell for the given position
+				value = fmt.Sprintf("%d\n", s.board[row][col])
+				nodes = &[]*cdp.Node{}
+			)
+
+			// Find the nodes matching the selector
+			if chromedp.Run(newCtx, chromedp.Nodes(id, nodes, chromedp.AtLeast(1))); err != nil {
+				return err
+			}
+
+			// Bail if there were no nodes
+			if nodes == nil {
+				return fmt.Errorf("no nodes retireved with selector id = \"%s\"", id)
+			}
+
+			// Enter the value and wait a bit
+			if err := chromedp.Run(newCtx,
+				chromedp.KeyEventNode((*nodes)[0], value),
+			); err != nil {
+				return err
+			}
+
+		}
+	}
 
 	return nil
 }
