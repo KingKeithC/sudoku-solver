@@ -13,6 +13,13 @@ import (
 	"golang.org/x/net/html"
 )
 
+const (
+	pause              = time.Second * 3
+	timeout            = time.Second * 60
+	sudokuURL          = "https://nine.websudoku.com/"
+	puzzleGridSelector = `#puzzle_grid`
+)
+
 // Sudoku represents a game of Sudoku.
 type Sudoku struct {
 	board [][]int
@@ -56,7 +63,7 @@ func NewFromHTML(h *string) (*Sudoku, error) {
 		{0, 0, 0, 0, 0, 0, 0, 0, 0},
 	}
 
-	tbody := node.FirstChild
+	tbody := node.FirstChild.LastChild.FirstChild.FirstChild // Selects the html/body/table node
 	for tr := tbody.FirstChild; tr != nil; tr = tr.NextSibling {
 		for td := tr.FirstChild; td != nil; td = td.NextSibling {
 			input := td.FirstChild
@@ -189,14 +196,10 @@ func (s *Sudoku) Solve() bool {
 }
 
 func solveSudoku(ctx context.Context) error {
-
 	var (
-		timeout            = time.Second * 60
-		sudokuURL          = "https://nine.websudoku.com/"
-		puzzleGridSelector = `#puzzle_grid`
-		loc                string
-		title              string
-		tableOuterHTML     string
+		loc            string
+		title          string
+		tableOuterHTML string
 	)
 
 	// Create a new context with a 60 second timeout
@@ -204,23 +207,17 @@ func solveSudoku(ctx context.Context) error {
 	defer cancel()
 
 	log.Printf("Starting Sudoku Solver with a %1.f second timeout...", timeout.Seconds())
-
 	if err := chromedp.Run(newCtx,
 		chromedp.Navigate(sudokuURL),
 		chromedp.Location(&loc),
 		chromedp.Title(&title),
-	); err != nil {
-		return err
-	}
-
-	log.Printf("Running Sudoku Solver at [%s] (%s)...", title, loc)
-
-	if err := chromedp.Run(newCtx,
+		chromedp.Sleep(pause),
 		chromedp.OuterHTML(puzzleGridSelector, &tableOuterHTML, chromedp.NodeVisible),
 	); err != nil {
 		return err
 	}
 
+	log.Printf("Running Sudoku Solver at [%s] (%s)...", title, loc)
 	s, err := NewFromHTML(&tableOuterHTML)
 	if err != nil {
 		return err
@@ -230,6 +227,8 @@ func solveSudoku(ctx context.Context) error {
 	fmt.Println("Solved: ", solvable, "-----------------")
 	fmt.Println(s)
 	fmt.Println("-----------------------------")
+
+	time.Sleep(timeout)
 
 	return nil
 }
@@ -250,4 +249,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	time.Sleep(timeout)
 }
