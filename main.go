@@ -5,9 +5,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/chromedp/chromedp"
+	"golang.org/x/net/html"
 )
 
 // Sudoku represents a game of Sudoku.
@@ -34,19 +37,68 @@ func NewPremade() *Sudoku {
 	}
 }
 
-// NewFromHTML returns an instance of Sudoku with the board initially set from the contents of an HTML table grid.
-func NewFromHTML(h *string) *Sudoku {
-	board := [][]int{}
+// NewFromHTML returns an instance of Sudoku with the board initially set from the contents of an HTML table grid, or an error if it could not parse the HTML.
+func NewFromHTML(h *string) (*Sudoku, error) {
+	node, err := html.Parse(strings.NewReader(*h))
+	if err != nil {
+		return nil, err
+	}
 
-	for row := 0; row < 9; row++ {
-		for col := 0; col < 9; col++ {
+	board := [][]int{
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+	}
 
+	tbody := node.FirstChild
+	for tr := tbody.FirstChild; tr != nil; tr = tr.NextSibling {
+		for td := tr.FirstChild; td != nil; td = td.NextSibling {
+			input := td.FirstChild
+
+			// for each `input` tag
+			if input.Type == html.ElementNode && input.Data == "input" {
+				var (
+					id    string
+					value int
+				)
+
+				// Iterate over the attributes, and select the id, and value
+				for _, attr := range input.Attr {
+					switch attr.Key {
+					case "id":
+						id = attr.Val
+					case "value":
+						value, err = strconv.Atoi(attr.Val)
+						if err != nil {
+							value = 0
+						}
+					}
+				}
+
+				// Determine the row, and column from the id
+				id = id[1:]                      // Strip off first character
+				row, err := strconv.Atoi(id[1:]) // Row is second character
+				if err != nil {
+					return nil, err
+				}
+				col, err := strconv.Atoi(id[:1]) // Col is first character
+				if err != nil {
+					return nil, err
+				}
+
+				// Set the position on the board to the value
+				board[row][col] = value
+			}
 		}
 	}
 
-	return &Sudoku{
-		board: board,
-	}
+	return &Sudoku{board}, nil
 }
 
 // String returns a string representation of s.
@@ -169,7 +221,16 @@ func solveSudoku(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Println(tableOuterHTML)
+	s, err := NewFromHTML(&tableOuterHTML)
+	if err != nil {
+		return err
+	}
+
+	solvable := s.Solve()
+	fmt.Println("Solved: ", solvable, "-----------------")
+	fmt.Println(s)
+	fmt.Println("-----------------------------")
+
 	return nil
 }
 
