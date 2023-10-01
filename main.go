@@ -196,6 +196,7 @@ func (s *Sudoku) Solve() bool {
 	return true
 }
 
+// solveSudoku is intended to be used with
 func solveSudoku(ctx context.Context) error {
 	var (
 		loc            string
@@ -213,7 +214,6 @@ func solveSudoku(ctx context.Context) error {
 		chromedp.Navigate(sudokuURL),
 		chromedp.Location(&loc),
 		chromedp.Title(&title),
-		chromedp.Sleep(pause),
 		chromedp.OuterHTML(puzzleGridSelector, &tableOuterHTML, chromedp.NodeVisible),
 	); err != nil {
 		return err
@@ -277,10 +277,10 @@ func main() {
 	ctx, cancel := chromedp.NewContext(allocCtx)
 	defer cancel()
 
-	err := chromedp.Run(ctx, chromedp.ActionFunc(solveSudoku))
-	if err != nil {
-		log.Fatal(err)
+	for {
+		err := chromedp.Run(ctx, chromedp.ActionFunc(solveSudoku))
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
-
-	time.Sleep(timeout)
 }
